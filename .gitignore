@@ -1,0 +1,7 @@
+.build/
+bin/
+zig-out/
+*.xcodeproj
+*.xcworkspace
+.swiftpm/
+Package.resolved

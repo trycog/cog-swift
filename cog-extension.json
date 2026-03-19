@@ -1,0 +1,12 @@
+{
+  "name": "cog-swift",
+  "version": "0.1.0",
+  "extensions": [".swift"],
+  "language_names": ["swift"],
+  "args": ["--output", "{output}", "{files}"],
+  "build": "swift build -c release && mkdir -p bin && cp .build/release/cog-swift bin/cog-swift",
+  "debugger": {
+    "type": "native",
+    "boundary_markers": ["swift_task_switch", "_swift_runtime_on_report"]
+  }
+}

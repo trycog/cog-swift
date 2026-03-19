@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(grep -E \"\\\\.\\(json|md\\)$\")",
+      "Bash(swift:*)",
+      "Bash(bash /Users/bcardarella/projects/cog-swift/test/smoke.sh 2>&1)"
+    ]
+  }
+}
