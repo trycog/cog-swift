@@ -45,7 +45,7 @@ run_fixture() {
 
     local all_passed=true
     for sym in "${expected_symbols[@]}"; do
-        if echo "$decoded" | grep -q "$sym"; then
+        if grep -q "$sym" <<< "$decoded"; then
             echo "  OK: found $sym"
             ((PASS++))
         else
@@ -94,6 +94,58 @@ run_fixture "simple_project" \
     "globalConstant(0)." \
     "Greeter#speak(0)." \
     "Greeter#Voice#"
+
+run_fixture "nested_types" \
+    "Outer#" \
+    "Outer#outerProp." \
+    "Outer#Inner#" \
+    "Outer.Inner#innerProp." \
+    "Outer.Inner#DeepNested#" \
+    "Outer.Inner.DeepNested#deepProp." \
+    "Outer#Status#" \
+    "Outer.Status#active." \
+    "Outer.Status#inactive." \
+    "Outer.Status#Info#" \
+    "Outer.Status.Info#detail." \
+    "Outer#Helper#" \
+    "Outer.Helper#help(0)." \
+    "Container#" \
+    "Container#\\[T\\]" \
+    "Container#items." \
+    "Container#Node#" \
+    "Container.Node#\\[U\\]" \
+    "Container.Node#value."
+
+run_fixture "protocols_extensions" \
+    "Drawable#" \
+    "Drawable#\\[Color\\]" \
+    "Drawable#draw(0)." \
+    "Drawable#canvas." \
+    "Resizable#" \
+    "Resizable#resize(1)." \
+    "Circle#" \
+    "Circle#radius." \
+    "Circle#canvas." \
+    "Circle#draw(0)." \
+    "Circle#resize(1)." \
+    "Circle#diameter." \
+    "Circle#area(0)." \
+    "Circle#Voice#\|Circle#Color#" \
+    "Circle#description."
+
+run_fixture "cross_file_import" \
+    "User#" \
+    "User#id." \
+    "User#name." \
+    "User#email." \
+    "User#init(3)." \
+    "UserService#" \
+    "UserService#addUser(1)." \
+    "UserService#count(0)." \
+    "UserService#subscript(1)." \
+    "ServiceError#" \
+    "ServiceError#notFound." \
+    "ServiceError#unauthorized."
 
 # --- Summary ---
 echo ""

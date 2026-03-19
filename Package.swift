@@ -11,16 +11,20 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.1"),
     ],
     targets: [
-        .executableTarget(
-            name: "CogSwift",
+        .target(
+            name: "CogSwiftLib",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ]
         ),
+        .executableTarget(
+            name: "CogSwift",
+            dependencies: ["CogSwiftLib"]
+        ),
         .testTarget(
             name: "CogSwiftTests",
-            dependencies: ["CogSwift"]
+            dependencies: ["CogSwiftLib"]
         ),
     ]
 )

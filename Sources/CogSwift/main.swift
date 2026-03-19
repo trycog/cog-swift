@@ -2,6 +2,7 @@
 // Entry point: parse CLI args, analyze files concurrently, write SCIP protobuf output.
 
 import Foundation
+import CogSwiftLib
 
 // MARK: - Progress Reporting
 
@@ -18,14 +19,6 @@ func emitDebug(event: String, attributes: [String: String] = [:]) {
         FileHandle.standardError.write(data)
         FileHandle.standardError.write(Data("\n".utf8))
     }
-}
-
-// MARK: - Version
-
-func readVersion() -> String {
-    // Try to read version from cog-extension.json relative to the binary
-    // Fall back to hardcoded version
-    return "0.1.0"
 }
 
 // MARK: - File Analysis
@@ -91,7 +84,7 @@ guard let options = CLI.parse(args) else {
     exit(1)
 }
 
-let version = readVersion()
+let version = Version.read()
 
 emitDebug(event: "index_start", attributes: [
     "files": "\(options.filePaths.count)",

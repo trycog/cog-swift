@@ -1,6 +1,6 @@
 // Scope stack management for tracking nested declarations during AST analysis.
 
-enum ScopeKind {
+public enum ScopeKind: Sendable {
     case topLevel
     case module
     case `class`
@@ -13,35 +13,44 @@ enum ScopeKind {
     case closure
 }
 
-struct Scope {
-    var kind: ScopeKind
-    var name: String
-    var symbol: String
-    var localVariables: [String: String] = [:]  // name -> SCIP symbol
-    var localIndex: Int = 0
+public struct Scope: Sendable {
+    public var kind: ScopeKind
+    public var name: String
+    public var symbol: String
+    public var localVariables: [String: String] = [:]
+    public var localIndex: Int = 0
+
+    public init(kind: ScopeKind, name: String, symbol: String, localVariables: [String: String] = [:], localIndex: Int = 0) {
+        self.kind = kind
+        self.name = name
+        self.symbol = symbol
+        self.localVariables = localVariables
+        self.localIndex = localIndex
+    }
 }
 
-struct ScopeStack {
+public struct ScopeStack: Sendable {
     private var stack: [Scope] = []
 
-    var isEmpty: Bool { stack.isEmpty }
-    var count: Int { stack.count }
+    public init() {}
 
-    mutating func push(_ scope: Scope) {
+    public var isEmpty: Bool { stack.isEmpty }
+    public var count: Int { stack.count }
+
+    public mutating func push(_ scope: Scope) {
         stack.append(scope)
     }
 
     @discardableResult
-    mutating func pop() -> Scope? {
+    public mutating func pop() -> Scope? {
         stack.popLast()
     }
 
-    var current: Scope? {
+    public var current: Scope? {
         stack.last
     }
 
-    /// Walk up the stack to find the enclosing type name (class, struct, enum, protocol, actor, extension).
-    func enclosingTypeName() -> String? {
+    public func enclosingTypeName() -> String? {
         for scope in stack.reversed() {
             switch scope.kind {
             case .class, .struct, .enum, .protocol, .actor, .extension:
@@ -53,8 +62,7 @@ struct ScopeStack {
         return nil
     }
 
-    /// Walk up the stack to find the enclosing type's SCIP symbol.
-    func enclosingTypeSymbol() -> String? {
+    public func enclosingTypeSymbol() -> String? {
         for scope in stack.reversed() {
             switch scope.kind {
             case .class, .struct, .enum, .protocol, .actor, .extension:
@@ -66,8 +74,7 @@ struct ScopeStack {
         return nil
     }
 
-    /// Get the fully qualified name by joining all type scope names with ".".
-    func qualifiedTypeName() -> String {
+    public func qualifiedTypeName() -> String {
         stack
             .filter { scope in
                 switch scope.kind {
@@ -81,14 +88,12 @@ struct ScopeStack {
             .joined(separator: ".")
     }
 
-    /// Define a local variable in the current scope.
-    mutating func defineLocal(name: String, symbol: String) {
+    public mutating func defineLocal(name: String, symbol: String) {
         guard !stack.isEmpty else { return }
         stack[stack.count - 1].localVariables[name] = symbol
     }
 
-    /// Look up a local variable, searching from innermost scope outward.
-    func lookupLocal(name: String) -> String? {
+    public func lookupLocal(name: String) -> String? {
         for scope in stack.reversed() {
             if let symbol = scope.localVariables[name] {
                 return symbol
@@ -97,8 +102,7 @@ struct ScopeStack {
         return nil
     }
 
-    /// Get and increment the local variable index in the current scope.
-    mutating func nextLocalIndex() -> Int {
+    public mutating func nextLocalIndex() -> Int {
         guard !stack.isEmpty else { return 0 }
         let index = stack[stack.count - 1].localIndex
         stack[stack.count - 1].localIndex = index + 1

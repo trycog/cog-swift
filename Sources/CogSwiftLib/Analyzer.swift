@@ -56,12 +56,10 @@ final class Analyzer: SyntaxVisitor {
         for piece in node.leadingTrivia {
             switch piece {
             case .docLineComment(let text):
-                // Strip "/// " prefix
                 let stripped = text.hasPrefix("/// ") ? String(text.dropFirst(4)) :
                                text.hasPrefix("///") ? String(text.dropFirst(3)) : text
                 lines.append(stripped)
             case .docBlockComment(let text):
-                // Strip "/** " and " */" wrapping
                 var inner = text
                 if inner.hasPrefix("/**") { inner = String(inner.dropFirst(3)) }
                 if inner.hasSuffix("*/") { inner = String(inner.dropLast(2)) }
@@ -71,6 +69,13 @@ final class Analyzer: SyntaxVisitor {
             }
         }
         return lines
+    }
+
+    /// Check if a declaration has a static or class modifier.
+    func isStatic(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { modifier in
+            modifier.name.tokenKind == .keyword(.static) || modifier.name.tokenKind == .keyword(.class)
+        }
     }
 
     /// Record a symbol definition.
@@ -120,12 +125,10 @@ final class Analyzer: SyntaxVisitor {
             enclosingSymbol: enclosing
         )
 
-        // Record inheritance
         if let inheritanceClause = node.inheritanceClause {
             recordInheritance(inheritanceClause, enclosingSymbol: symbol)
         }
 
-        // Process generic parameters
         if let generics = node.genericParameterClause {
             recordGenericParameters(generics, owner: owner.isEmpty ? name : "\(owner).\(name)", ownerSymbol: symbol)
         }
@@ -268,10 +271,8 @@ final class Analyzer: SyntaxVisitor {
         let extendedType = node.extendedType.trimmedDescription
         let symbol = SCIPSymbolBuilder.classSymbol(package: packageName, name: extendedType)
 
-        // Record a reference to the extended type
         recordReference(symbol: symbol, range: range(for: node.extendedType))
 
-        // Record conformances
         if let inheritanceClause = node.inheritanceClause {
             recordInheritance(inheritanceClause, enclosingSymbol: symbol)
         }
@@ -292,27 +293,30 @@ final class Analyzer: SyntaxVisitor {
         let owner = scopeStack.qualifiedTypeName()
         let enclosing = scopeStack.enclosingTypeSymbol() ?? ""
         let arity = node.signature.parameterClause.parameters.count
+        let staticPrefix = isStatic(node.modifiers) ? "static." : ""
 
         let symbol: String
         let kind: Int32
+        let displayName: String
         if owner.isEmpty {
             symbol = SCIPSymbolBuilder.functionSymbol(package: packageName, name: name, arity: arity)
             kind = SymbolKind.function
+            displayName = name
         } else {
-            symbol = SCIPSymbolBuilder.methodSymbol(package: packageName, owner: owner, name: name, arity: arity)
+            symbol = SCIPSymbolBuilder.methodSymbol(package: packageName, owner: owner, name: "\(staticPrefix)\(name)", arity: arity)
             kind = SymbolKind.method
+            displayName = isStatic(node.modifiers) ? "static \(name)" : name
         }
 
         recordDefinition(
             symbol: symbol,
             range: range(for: node.name),
             kind: kind,
-            displayName: name,
+            displayName: displayName,
             documentation: docs,
             enclosingSymbol: enclosing
         )
 
-        // Process generic parameters
         if let generics = node.genericParameterClause {
             let paramOwner = owner.isEmpty ? name : "\(owner).\(name)"
             recordGenericParameters(generics, owner: paramOwner, ownerSymbol: symbol)
@@ -320,7 +324,6 @@ final class Analyzer: SyntaxVisitor {
 
         scopeStack.push(Scope(kind: .function, name: name, symbol: symbol))
 
-        // Record parameters
         for param in node.signature.parameterClause.parameters {
             recordParameter(param, functionSymbol: symbol)
         }
@@ -433,33 +436,35 @@ final class Analyzer: SyntaxVisitor {
         let isInsideFunction = scopeStack.current.map { scope in
             scope.kind == .function || scope.kind == .closure
         } ?? false
+        let staticPrefix = isStatic(node.modifiers) ? "static." : ""
 
         for binding in node.bindings {
             guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
             let name = pattern.identifier.text
 
             if !isInsideFunction {
-                // Property/field on a type or top-level variable
                 let symbol: String
                 let kind: Int32
+                let displayName: String
                 if isInsideType {
-                    symbol = SCIPSymbolBuilder.propertySymbol(package: packageName, owner: owner, name: name)
+                    symbol = SCIPSymbolBuilder.propertySymbol(package: packageName, owner: owner, name: "\(staticPrefix)\(name)")
                     kind = SymbolKind.property
+                    displayName = isStatic(node.modifiers) ? "static \(name)" : name
                 } else {
                     symbol = SCIPSymbolBuilder.functionSymbol(package: packageName, name: name, arity: 0)
                     kind = SymbolKind.variable
+                    displayName = name
                 }
 
                 recordDefinition(
                     symbol: symbol,
                     range: range(for: pattern.identifier),
                     kind: kind,
-                    displayName: name,
+                    displayName: displayName,
                     documentation: docs,
                     enclosingSymbol: enclosing
                 )
             } else {
-                // Local variable
                 let idx = globalLocalIndex
                 globalLocalIndex += 1
                 let symbol = SCIPSymbolBuilder.localSymbol(index: idx)
@@ -498,7 +503,6 @@ final class Analyzer: SyntaxVisitor {
                 enclosingSymbol: enclosing
             )
 
-            // Record associated value parameters
             if let paramClause = element.parameterClause {
                 for param in paramClause.parameters {
                     if let firstName = param.firstName {
@@ -583,6 +587,69 @@ final class Analyzer: SyntaxVisitor {
         return .visitChildren
     }
 
+    // MARK: - Operator Declarations (P2)
+
+    override func visit(_ node: OperatorDeclSyntax) -> SyntaxVisitorContinueKind {
+        let name = node.name.text
+        let docs = extractDocComment(from: node)
+        let symbol = SCIPSymbolBuilder.functionSymbol(package: packageName, name: name, arity: 0)
+
+        recordDefinition(
+            symbol: symbol,
+            range: range(for: node.name),
+            kind: SymbolKind.function,
+            displayName: name,
+            documentation: docs
+        )
+
+        return .visitChildren
+    }
+
+    // MARK: - Precedence Groups (P2)
+
+    override func visit(_ node: PrecedenceGroupDeclSyntax) -> SyntaxVisitorContinueKind {
+        let name = node.name.text
+        let docs = extractDocComment(from: node)
+        let symbol = SCIPSymbolBuilder.functionSymbol(package: packageName, name: name, arity: 0)
+
+        recordDefinition(
+            symbol: symbol,
+            range: range(for: node.name),
+            kind: SymbolKind.type,
+            displayName: name,
+            documentation: docs
+        )
+
+        return .visitChildren
+    }
+
+    // MARK: - Macro Declarations (P2, Swift 5.9+)
+
+    override func visit(_ node: MacroDeclSyntax) -> SyntaxVisitorContinueKind {
+        let name = node.name.text
+        let docs = extractDocComment(from: node)
+        let owner = scopeStack.qualifiedTypeName()
+        let enclosing = scopeStack.enclosingTypeSymbol() ?? ""
+
+        let symbol: String
+        if owner.isEmpty {
+            symbol = SCIPSymbolBuilder.functionSymbol(package: packageName, name: name, arity: 0)
+        } else {
+            symbol = SCIPSymbolBuilder.methodSymbol(package: packageName, owner: owner, name: name, arity: 0)
+        }
+
+        recordDefinition(
+            symbol: symbol,
+            range: range(for: node.name),
+            kind: SymbolKind.function,
+            displayName: name,
+            documentation: docs,
+            enclosingSymbol: enclosing
+        )
+
+        return .visitChildren
+    }
+
     // MARK: - Closures
 
     override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
@@ -592,7 +659,6 @@ final class Analyzer: SyntaxVisitor {
 
         scopeStack.push(Scope(kind: .closure, name: "<closure>", symbol: symbol))
 
-        // Record closure parameters
         if let signature = node.signature {
             if let paramClause = signature.parameterClause {
                 switch paramClause {
@@ -642,12 +708,9 @@ final class Analyzer: SyntaxVisitor {
     override func visit(_ node: DeclReferenceExprSyntax) -> SyntaxVisitorContinueKind {
         let name = node.baseName.text
 
-        // Try local variable lookup first
         if let localSymbol = scopeStack.lookupLocal(name: name) {
             recordReference(symbol: localSymbol, range: range(for: node.baseName))
         }
-        // For non-local references, we can't resolve them without type-checking
-        // but we still record them with a best-effort symbol
         return .visitChildren
     }
 
@@ -693,6 +756,27 @@ final class Analyzer: SyntaxVisitor {
         return .visitChildren
     }
 
+    // MARK: - Switch Case Value Bindings (P2)
+
+    override func visit(_ node: ValueBindingPatternSyntax) -> SyntaxVisitorContinueKind {
+        if let idPattern = node.pattern.as(IdentifierPatternSyntax.self) {
+            let name = idPattern.identifier.text
+            let idx = globalLocalIndex
+            globalLocalIndex += 1
+            let symbol = SCIPSymbolBuilder.localSymbol(index: idx)
+
+            recordDefinition(
+                symbol: symbol,
+                range: range(for: idPattern.identifier),
+                kind: SymbolKind.variable,
+                displayName: name
+            )
+
+            scopeStack.defineLocal(name: name, symbol: symbol)
+        }
+        return .visitChildren
+    }
+
     // MARK: - Helpers for Inheritance and Generics
 
     private func recordInheritance(_ clause: InheritanceClauseSyntax, enclosingSymbol: String) {
@@ -719,7 +803,6 @@ final class Analyzer: SyntaxVisitor {
     }
 
     private func recordParameter(_ param: FunctionParameterSyntax, functionSymbol: String) {
-        // Use secondName (internal name) if available, otherwise firstName (external name)
         let nameToken = param.secondName ?? param.firstName
         let name = nameToken.text
         guard name != "_" else { return }
@@ -753,7 +836,7 @@ final class Analyzer: SyntaxVisitor {
 
 // MARK: - Public Entry Point
 
-func analyzeFile(source: String, packageName: String, relativePath: String) -> SCIPDocument {
+public func analyzeFile(source: String, packageName: String, relativePath: String) -> SCIPDocument {
     let tree = Parser.parse(source: source)
     let analyzer = Analyzer(
         source: source,

@@ -3,16 +3,16 @@
 
 import Foundation
 
-enum WireType {
-    static let varint: UInt8 = 0
-    static let delimited: UInt8 = 2
+public enum WireType {
+    public static let varint: UInt8 = 0
+    public static let delimited: UInt8 = 2
 }
 
-enum ProtobufEncoder {
+public enum ProtobufEncoder {
 
     // MARK: - Low-level primitives
 
-    static func encodeVarint(_ value: UInt64) -> Data {
+    public static func encodeVarint(_ value: UInt64) -> Data {
         var data = Data()
         var v = value
         while v > 0x7F {
@@ -23,17 +23,17 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encodeSignedVarint(_ value: Int64) -> Data {
+    public static func encodeSignedVarint(_ value: Int64) -> Data {
         encodeVarint(UInt64(bitPattern: value))
     }
 
-    static func encodeTag(fieldNumber: Int, wireType: UInt8) -> Data {
+    public static func encodeTag(fieldNumber: Int, wireType: UInt8) -> Data {
         encodeVarint(UInt64(fieldNumber << 3 | Int(wireType)))
     }
 
     // MARK: - Field encoders
 
-    static func encodeStringField(fieldNumber: Int, value: String) -> Data {
+    public static func encodeStringField(fieldNumber: Int, value: String) -> Data {
         guard !value.isEmpty else { return Data() }
         let bytes = Data(value.utf8)
         var data = encodeTag(fieldNumber: fieldNumber, wireType: WireType.delimited)
@@ -42,21 +42,21 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encodeInt32Field(fieldNumber: Int, value: Int32) -> Data {
+    public static func encodeInt32Field(fieldNumber: Int, value: Int32) -> Data {
         guard value != 0 else { return Data() }
         var data = encodeTag(fieldNumber: fieldNumber, wireType: WireType.varint)
         data.append(encodeVarint(UInt64(bitPattern: Int64(value))))
         return data
     }
 
-    static func encodeBoolField(fieldNumber: Int, value: Bool) -> Data {
+    public static func encodeBoolField(fieldNumber: Int, value: Bool) -> Data {
         guard value else { return Data() }
         var data = encodeTag(fieldNumber: fieldNumber, wireType: WireType.varint)
         data.append(encodeVarint(1))
         return data
     }
 
-    static func encodeMessageField(fieldNumber: Int, data messageData: Data) -> Data {
+    public static func encodeMessageField(fieldNumber: Int, data messageData: Data) -> Data {
         guard !messageData.isEmpty else { return Data() }
         var data = encodeTag(fieldNumber: fieldNumber, wireType: WireType.delimited)
         data.append(encodeVarint(UInt64(messageData.count)))
@@ -64,7 +64,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encodePackedInt32Field(fieldNumber: Int, values: [Int32]) -> Data {
+    public static func encodePackedInt32Field(fieldNumber: Int, values: [Int32]) -> Data {
         guard !values.isEmpty else { return Data() }
         var packed = Data()
         for v in values {
@@ -76,7 +76,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encodeRepeatedStringField(fieldNumber: Int, values: [String]) -> Data {
+    public static func encodeRepeatedStringField(fieldNumber: Int, values: [String]) -> Data {
         var data = Data()
         for v in values {
             data.append(encodeStringField(fieldNumber: fieldNumber, value: v))
@@ -86,7 +86,7 @@ enum ProtobufEncoder {
 
     // MARK: - SCIP message encoders
 
-    static func encode(index: SCIPIndex) -> Data {
+    public static func encode(index: SCIPIndex) -> Data {
         var data = Data()
         data.append(encodeMessageField(fieldNumber: 1, data: encode(metadata: index.metadata)))
         for doc in index.documents {
@@ -98,7 +98,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encode(metadata: SCIPMetadata) -> Data {
+    public static func encode(metadata: SCIPMetadata) -> Data {
         var data = Data()
         data.append(encodeInt32Field(fieldNumber: 1, value: metadata.version))
         data.append(encodeMessageField(fieldNumber: 2, data: encode(toolInfo: metadata.toolInfo)))
@@ -107,7 +107,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encode(toolInfo: SCIPToolInfo) -> Data {
+    public static func encode(toolInfo: SCIPToolInfo) -> Data {
         var data = Data()
         data.append(encodeStringField(fieldNumber: 1, value: toolInfo.name))
         data.append(encodeStringField(fieldNumber: 2, value: toolInfo.version))
@@ -115,7 +115,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encode(document: SCIPDocument) -> Data {
+    public static func encode(document: SCIPDocument) -> Data {
         var data = Data()
         data.append(encodeStringField(fieldNumber: 4, value: document.language))
         data.append(encodeStringField(fieldNumber: 1, value: document.relativePath))
@@ -128,7 +128,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encode(occurrence: SCIPOccurrence) -> Data {
+    public static func encode(occurrence: SCIPOccurrence) -> Data {
         var data = Data()
         data.append(encodePackedInt32Field(fieldNumber: 1, values: occurrence.range))
         data.append(encodeStringField(fieldNumber: 2, value: occurrence.symbol))
@@ -138,7 +138,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encode(symbolInformation: SCIPSymbolInformation) -> Data {
+    public static func encode(symbolInformation: SCIPSymbolInformation) -> Data {
         var data = Data()
         data.append(encodeStringField(fieldNumber: 1, value: symbolInformation.symbol))
         data.append(encodeRepeatedStringField(fieldNumber: 3, values: symbolInformation.documentation))
@@ -151,7 +151,7 @@ enum ProtobufEncoder {
         return data
     }
 
-    static func encode(relationship: SCIPRelationship) -> Data {
+    public static func encode(relationship: SCIPRelationship) -> Data {
         var data = Data()
         data.append(encodeStringField(fieldNumber: 1, value: relationship.symbol))
         data.append(encodeBoolField(fieldNumber: 2, value: relationship.isReference))

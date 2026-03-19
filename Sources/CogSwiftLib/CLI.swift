@@ -1,13 +1,13 @@
 // CLI argument parsing for cog-swift.
 // Expected invocation: cog-swift --output <path> <file> [file ...]
 
-struct CLIOptions {
-    var filePaths: [String]
-    var outputPath: String
+public struct CLIOptions: Sendable {
+    public var filePaths: [String]
+    public var outputPath: String
 }
 
-enum CLI {
-    static func parse(_ args: [String]) -> CLIOptions? {
+public enum CLI {
+    public static func parse(_ args: [String]) -> CLIOptions? {
         var outputPath: String?
         var filePaths: [String] = []
         var i = 0
